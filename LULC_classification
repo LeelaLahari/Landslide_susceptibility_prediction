@@ -1,0 +1,554 @@
+---
+title: "LULC Mapping for Landslide Predictive Model - Sentinel 2 data (Mosaic)"
+output: html_notebook
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r}
+# Define a vector of required packages
+packages <- c(
+"raster", "sf", "caret", "randomForest", "here", "raster", "terra", "RStoolbox", "RColorBrewer"
+)
+```
+
+
+```{r}
+# Extract not installed packages
+not_installed <- packages[!(packages %in% installed.packages()[ , "Package"])]    
+
+# Install not installed packages
+if(length(not_installed)) install.packages(not_installed)                               
+```
+
+```{r}
+# Load packages
+suppressPackageStartupMessages(lapply(packages, library, character.only = TRUE))
+```
+
+```{r}
+# Parameters for the PNG being saved
+
+# Get today's date
+today_date <- Sys.Date()
+
+# Set custom DPI (e.g., 300)
+dpi <- 300
+width <- 16.5  # in inches
+height <- 11.7  # in inches
+```
+
+
+$$
+\textbf{Load Sentinel 2 data for Wayanad}
+$$ 
+
+
+
+```{r}
+# A - First Image ##############################################################
+
+# Import the four bands (2-8) as a Raster Stack 
+
+filename_a <- list.files(here("data/sentinel2_lvl2_10m/L2A_T43PEN_A045104_20240210T052850/IMG_DATA/R10m"),
+                        full.names = TRUE,
+                        pattern = "B0[2-8]_10m\\.jp2$")
+
+
+s2_a <- rast(filename_a)
+s2_a
+
+# Rename the bands
+names(s2_a) <- c("blue", "green", "red", "nir")
+
+s2_a
+
+# visualize 
+plotRGB(s2_a, 
+        r = "red", 
+        g = "green", 
+        b = "blue", # True Color Composite
+        stretch = "lin"
+        )
+```
+
+
+```{r}
+# B - Second Image ##############################################################
+
+# Import the four bands (2-8) as a Raster Stack 
+
+filename_b <- list.files(here("data/sentinel2_lvl2_10m/L2A_T43PEP_A045104_20240210T052850/IMG_DATA/R10m"),
+                        full.names = TRUE,
+                        pattern = "B0[2-8]_10m\\.jp2$")
+
+
+s2_b <- rast(filename_b)
+s2_b
+
+# Rename the bands
+names(s2_b) <- c("blue", "green", "red", "nir")
+
+s2_b
+
+# visualize 
+plotRGB(s2_b, 
+        r = "red", 
+        g = "green", 
+        b = "blue", # True Color Composite
+        stretch = "lin"
+        )
+```
+
+
+```{r}
+# C - Third Image ##############################################################
+
+# Import the four bands (2-8) as a Raster Stack 
+
+filename_c <- list.files(here("data/sentinel2_lvl2_10m/L2A_T43PFN_A045104_20240210T052850/IMG_DATA/R10m"),
+                        full.names = TRUE,
+                        pattern = "B0[2-8]_10m\\.jp2$")
+
+
+s2_c <- rast(filename_c)
+s2_c
+
+# Rename the bands
+names(s2_c) <- c("blue", "green", "red", "nir")
+
+s2_c
+
+# visualize 
+plotRGB(s2_c, 
+        r = "red", 
+        g = "green", 
+        b = "blue", # True Color Composite
+        stretch = "lin"
+        )
+```
+
+
+```{r}
+# D - Fourth Image ##############################################################
+
+# Import the four bands (2-8) as a Raster Stack 
+
+filename_d <- list.files(here("data/sentinel2_lvl2_10m/L2A_T43PFP_A036267_20240215T053307/IMG_DATA/R10m"),
+                        full.names = TRUE,
+                        pattern = "B0[2-8]_10m\\.jp2$")
+
+
+s2_d <- rast(filename_d)
+s2_d
+
+# Rename the bands
+names(s2_d) <- c("blue", "green", "red", "nir")
+
+s2_d
+
+# visualize 
+plotRGB(s2_d, 
+        r = "red", 
+        g = "green", 
+        b = "blue", # True Color Composite
+        stretch = "lin"
+        )
+```
+
+
+```{r}
+# E - Fifth Image ##############################################################
+
+# Import the four bands (2-8) as a Raster Stack 
+
+filename_e <- list.files(here("data/sentinel2_lvl2_10m/L2A_T43PFP_A045104_20240210T052850/IMG_DATA/R10m"),
+                        full.names = TRUE,
+                        pattern = "B0[2-8]_10m\\.jp2$")
+
+
+s2_e <- rast(filename_e)
+s2_e
+
+# Rename the bands
+names(s2_e) <- c("blue", "green", "red", "nir")
+
+s2_e
+
+# visualize 
+plotRGB(s2_e, 
+        r = "red", 
+        g = "green", 
+        b = "blue", # True Color Composite
+        stretch = "lin"
+        )
+```
+
+$$
+\textbf{Load Spatial data for Wayanad and check/clean Data}
+$$ 
+```{r}
+# Load the India district shape file
+wynd_shp <- st_read(here("data/Survey_of_India","Vaithiry Wayanad Sub Dist Boundary.shp"))
+```
+
+```{r}
+# Set the CRS for the shape file the same as the remote sensing Data
+wynd_shp <- st_transform(wynd_shp, crs = st_crs(s2_a))
+```
+
+```{r}
+wynd_shp
+```
+
+
+```{r}
+#################################################################################
+# Crop the Images to the wayanad vaithiry sub district
+s2_a <- crop(s2_a, wynd_shp) # crop to a rectangle 
+
+# Mask the values in s2 based on the shape of the wayanad vaithiry sub district shape file 
+s2_a <- mask(s2_a, wynd_shp)
+```
+
+```{r}
+# visualize the result 
+plotRGB(s2_a, r = "red", g = "green", b = "blue", # True Color Composite
+        stretch = "lin"
+        )
+```
+
+
+```{r}
+#################################################################################
+# Crop the Images to the wayanad vaithiry sub district
+s2_b <- crop(s2_b, wynd_shp) # crop to a rectangle 
+
+# Mask the values in s2 based on the shape of the wayanad vaithiry sub district shape file 
+s2_b <- mask(s2_b, wynd_shp)
+```
+
+```{r}
+# visualize the result 
+plotRGB(s2_b, r = "red", g = "green", b = "blue", # True Color Composite
+        stretch = "lin"
+        )
+```
+
+```{r}
+#################################################################################
+# Crop the Images to the wayanad vaithiry sub district
+s2_c <- crop(s2_c, wynd_shp) # crop to a rectangle 
+
+# Mask the values in s2 based on the shape of the wayanad vaithiry sub district shape file 
+s2_c <- mask(s2_c, wynd_shp)
+```
+
+```{r}
+# visualize the result 
+plotRGB(s2_c, r = "red", g = "green", b = "blue", # True Color Composite
+        stretch = "lin"
+        )
+```
+
+```{r}
+#################################################################################
+# Crop the Images to the wayanad vaithiry sub district
+s2_d <- crop(s2_d, wynd_shp) # crop to a rectangle 
+
+# Mask the values in s2 based on the shape of the wayanad vaithiry sub district shape file 
+s2_d <- mask(s2_d, wynd_shp)
+```
+
+```{r}
+# visualize the result 
+plotRGB(s2_d, r = "red", g = "green", b = "blue", # True Color Composite
+        stretch = "lin"
+        )
+```
+
+```{r}
+#################################################################################
+# Crop the Images to the wayanad vaithiry sub district
+s2_e <- crop(s2_e, wynd_shp) # crop to a rectangle 
+
+# Mask the values in s2 based on the shape of the wayanad vaithiry sub district shape file 
+s2_e <- mask(s2_e, wynd_shp)
+```
+
+```{r}
+# visualize the result 
+plotRGB(s2_e, r = "red", g = "green", b = "blue", # True Color Composite
+        stretch = "lin"
+        )
+```
+
+$$
+\textbf{merge the loaded images into a mosaic}
+$$ 
+```{r}
+# ??mosaic
+```
+
+```{r}
+s2_mosaic <- mosaic(s2_a, s2_b, s2_c, s2_d, s2_e, fun=mean)
+s2_mosaic
+```
+
+```{r}
+# visualize the result 
+plotRGB(s2_mosaic, r = "red", g = "green", b = "blue", # True Color Composite
+        stretch = "lin"
+        )
+```
+
+
+$$
+\textbf{Load Training Data}
+$$ 
+
+```{r}
+# Import shapefile containing training data
+shp_train <- vect(here("data/TrainingSet/SCP Training Layer.shp"))
+shp_train
+```
+
+```{r}
+# Conversion of class-characters
+levels(as.factor(shp_train$macroclass))
+
+for (i in 1:length(unique(shp_train$macroclass))) {
+  cat(paste0(i, " ", levels(as.factor(shp_train$macroclass))[i]), sep = "\n")
+}
+```
+
+```{r}
+# bands of S2 image
+names(s2_mosaic)
+```
+
+```{r}
+# Create dataframe
+s2_smp <- extract(s2_mosaic, shp_train, df = TRUE)
+```
+
+```{r}
+# Matching ID of smp and class of shp to new column "cl", delete "ID" column
+s2_smp$cl <- as.factor(shp_train$macroclass[match(s2_smp$ID, seq(nrow(shp_train)))])
+s2_smp <- s2_smp[-1]
+
+```
+
+```{r}
+# Save dataframe to your working directory
+save(s2_smp, file = here("output/process/s2_smp.rda"))
+
+# Load dataframe from your working directory
+load(file = here("output/process/s2_smp.rda"))
+
+# Check out the summary of the class-column in smp
+summary(s2_smp$cl)
+str(s2_smp)
+```
+
+$$
+\textbf{Spectral Profile Visualization}
+$$ 
+```{r}
+# Aggregate cl-column 
+spec_profile <- aggregate(. ~ cl, data = s2_smp, FUN = mean, na.rm = TRUE)
+
+# Plot empty plot of a defined size
+plot(0,
+     ylim = c(min(spec_profile[2:ncol(spec_profile)]), max(spec_profile[2:ncol(spec_profile)])), 
+     xlim = c(1, ncol(s2_smp)-1), 
+     type = 'n', 
+     xlab = "S2 bands", 
+     ylab = "Reflectance [% * 100]",
+     xaxt = 'n'  # Suppress the default x-axis
+)
+
+# Add custom x-axis ticks at 1, 2, 3, 4 for the Sentinel 2 Bands
+axis(1, at = c(1, 2, 3, 4), labels = c("Band Blue", "Band Green", "Band Red", "Band NIR"))
+
+# Define colors for class representation - one color per class necessary!
+mycolors <- c("#1818dc", "#f84342", "#094905", "orange", "#7ccd8a", "#dec313") # as per the LULC norm in India
+
+# Draw one line for each class
+for (i in 1:nrow(spec_profile)) {
+  lines(as.numeric(spec_profile[i, -1]), 
+        lwd = 4, 
+        col = mycolors[i]
+  )
+}
+
+# Add a grid
+grid()
+
+# Add a legend
+legend(as.character(spec_profile$cl),
+       x = "topleft",
+       col = mycolors,
+       lwd = 5,
+       bty = "n"
+)
+```
+
+$$
+\textbf{Classification: Random Forest (RF) }
+$$ 
+
+```{r}
+# Access training samples
+summary(s2_smp$cl)
+
+# Down-Sampling via minority class and identify the number of available training samples per class
+s2_smp.size <- rep(min(summary(s2_smp$cl)), nlevels(s2_smp$cl))
+s2_smp.size
+
+rfmodel_s2 <- tuneRF(x = s2_smp[-ncol(s2_smp)],
+                  y = s2_smp$cl,
+                  sampsize = s2_smp.size,
+                  strata = s2_smp$cl,
+                  ntree = 250,
+                  importance = TRUE,
+                  doBest = TRUE,                  # Whether to run a forest using the optimal mtry found
+                  plot = TRUE                      # Whether to plot the OOB error as function of mtry
+)
+
+# Print useful information about our model
+rfmodel_s2
+
+# Access/Plot important variables
+varImpPlot(rfmodel_s2)
+
+# Plot rfmodel
+plot(rfmodel_s2, col = c("#000000", "#fbf793", "#006601", "#bfe578", "#d00000", "#6569ff"), lwd = 3) 
+
+# Save model-file
+# save(rfmodel_s2, file = "rfmodel_s2.RData")
+save(rfmodel_s2, file = here("output/process/rfmodel_s2.RData"))
+
+# Load model-file
+load(here("output/process/rfmodel_s2.RData"))
+```
+
+
+```{r}
+# Replace NA values with 0 or another appropriate value
+s2_mosaic <- ifel(is.na(s2_mosaic), 0, s2_mosaic)
+```
+
+```{r}
+# Align extents explicitly
+s2_mosaic <- crop(s2_mosaic, ext(s2_mosaic))  # Crop to its own extent to ensure consistency
+```
+
+```{r}
+# Check for remaining NA values
+anyNA(values(s2_mosaic))
+```
+
+
+```{r}
+# Predict all pixels/run classification
+result <- predict(s2_mosaic,
+                  rfmodel_s2,
+                  filename = here("output/process/RF_classification_s2.tif"),
+                  overwrite = TRUE
+)
+
+# Plot Classification
+plot(result, 
+     axes = FALSE, 
+     box = FALSE,
+     col = mycolors
+)
+```
+
+```{r}
+#################################################################################
+# Crop the RF Image to the wayanad vaithiry sub district
+result <- crop(result, wynd_shp) # crop to a rectangle 
+
+# Mask the values in RF Image based on the shape of the wayanad vaithiry sub district shape file 
+result <- mask(result, wynd_shp)
+result
+```
+
+```{r}
+# Get the extent of the raster
+e <- ext(result)
+
+# Calculate the aspect ratio (width/height of the extent)
+aspect_ratio <- (e[2] - e[1]) / (e[4] - e[3])
+
+# Set a fixed height, and calculate width based on the aspect ratio
+height <- 2500  # Set the desired height
+width <- height * aspect_ratio
+
+# Open PNG device with the desired resolution
+png(here("plots/Issue_out/s2_RF_LULC.png"), width = width, height = height, res = 300)
+
+# Plot the SpatRaster with a specified resolution for visualization
+plot(result, 
+     main = "S2 Random Forrest LULC",     # Title
+     axes = TRUE,                  # Show axes
+     legend = TRUE,                # Show legend
+     cex.main = 1.5,               # Title size (reasonable size)
+     cex.axis = 1,                 # Axis label size (slightly bigger)
+     cex.lab = 1.2,                # Axis text size (x and y labels)
+     cex.legend = 1,               # Legend text size
+     tck = 0.02,                   # Length of axis ticks
+     mgp = c(3, 1, 0))             # Margins for axis labels and ticks
+
+# Close the PNG device
+dev.off()
+```
+
+
+```{r}
+# result <-  terra::set.crs(x = result, "EPSG:4326")
+```
+
+
+```{r}
+# Plot Classification
+plot(result, 
+     axes = TRUE, 
+     box = TRUE,
+     col = mycolors,
+     # legend = FALSE
+     , width = 1024, height = 576 , res = 500
+)
+par(mar = c(5, 10, 4, 2)) 
+```
+
+
+```{r}
+# Reproject the raster to WGS 84 (EPSG:4326) for degrees (lat/lon)
+result_wgs84 <- project(result, crs = "EPSG:4326")
+```
+
+```{r}
+# Convert the reprojected raster to a data.frame
+df <- as.data.frame(result_wgs84, xy = TRUE, long = TRUE)
+```
+
+```{r}
+# Create the plot using ggplot2
+ggplot(df, aes(x = x, y = y, fill = factor(class))) + 
+  geom_raster() + 
+  scale_fill_manual(values = c("red", "blue", "green", "yellow", "purple", "orange")) +
+  coord_equal() +  # Ensure equal aspect ratio
+  theme_minimal() +
+  theme(legend.position = "bottom") +
+  labs(title = "RF LULC Classification", fill = "Class")
+```
+
+
+```{r}
+# Save the plot as PNG
+ggsave("rf_classification_plot.png", width = 10, height = 8, dpi = 150)
+```
+
